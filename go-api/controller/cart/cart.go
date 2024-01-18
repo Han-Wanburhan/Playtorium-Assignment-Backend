@@ -74,11 +74,21 @@ func CouponFixedAmount(c *gin.Context) {
 	}
 
 	if json.Total >= json.Amount && json.Amount > 1 && json.Total > 1{
-		newTotal := json.Total - json.Amount
+		// newTotal := json.Total - json.Amount
+		newTotal, _ := DisFixedAmount(json.Total, json.Amount)
 		c.JSON(http.StatusOK, gin.H{"status": "success", "newTotal": newTotal,"discount": json.Amount})
 	} else {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"status": "error", "message": "Amount exceeds the total, cannot apply discount"})
 	}
+}
+
+func DisFixedAmount(total , amount int) (int, error) {
+	if total >= amount && amount > 1 && total > 1{
+		newTotal := total - amount
+		return newTotal, nil
+	} 
+	return 0, errors.New("Amount exceeds the total, cannot apply discount")
+
 }
 
 type couponpercentagediscountbody struct {
@@ -101,7 +111,7 @@ func CouponPercentageDiscount(c *gin.Context) {
 		} else {
 		discount := json.Total * json.Percentage / 100
 		newTotal := json.Total - discount
-		c.JSON(http.StatusOK, gin.H{"status": "success", "newTotal": newTotal,"discount": discount})
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "newTotal": newTotal,"discount": discount})
 	}
 }
 
@@ -148,26 +158,30 @@ if result.Error != nil {
 		} else {
 		
 
-
     // Check if any records were found
     if len(results) > 0 {
-		// for _, result := range results {
-		// 	fmt.Println(result.Product.P_Price)
-		// }
-        // c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Records found", "results": results})
-		// return
         		var productIDs []int
 				var productPrice []int
+				
 		for _, result := range results {
 
 			if result.Product.CategoryID == uint(json.Category) {
+				if result.Quantity > 1 {
+					productIDs = append(productIDs, result.ProductID)
+					productPrice = append(productPrice, result.Quantity*result.Product.P_Price)
+				}else{
+					productIDs = append(productIDs, result.ProductID)
+					productPrice = append(productPrice, result.Product.P_Price)}
 
-			productIDs = append(productIDs, result.ProductID)
-			productPrice = append(productPrice, result.Product.P_Price)
+			
 		}
+
 
 		
     }
+	// fmt.Println(productPrice)
+			fmt.Println(productIDs)
+		fmt.Println(productPrice)
 			
 	totalincate := sum(productPrice)
 	totaldis := float64(totalincate) * float64(json.Percentage) / 100
