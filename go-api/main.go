@@ -44,6 +44,11 @@ func main() {
 	r.POST("/total/ontopdisbycate", CatreToCartController.OntopPercentageDiscountByCategory)
 	r.POST("/total/ontopdisbypoint", CatreToCartController.OntopDiscountByPoint)
 	r.POST("/total/seasonalcampaigns", CatreToCartController.SeasonalSpecialCampaigns)
+	r.GET("/getallcategory", CatreProController.GetAllProduct)
+	r.GET("/getallcategory/:id", CatreProController.GetProductById)
+	r.GET("/getimage/:id", CatreProController.GetImageById)
+	r.GET("/getcate/:id", CatreProController.GetCategoryById)
+	r.GET("/getallincart/:id", CatreToCartController.GetAllCartItemById)
 
 	// Run the server
 	r.Run("localhost:8081")

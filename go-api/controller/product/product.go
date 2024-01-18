@@ -43,3 +43,105 @@ var json addproductbody
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Category created successfully", "category": newProduct})
 
 }
+
+
+
+func GetAllProduct(c *gin.Context) {
+	var products []orm.PRODUCT
+
+	// ดึงข้อมูลทั้งหมดจากตาราง PRODUCT
+	result := orm.Db.Find(&products)
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to retrieve products", "error": result.Error.Error()})
+		return
+	}
+
+	for i, product := range products {
+		var images []orm.IMAGE
+
+		// ดึงข้อมูลจากตาราง IMAGE ที่มี productID เท่ากับ ID ของสินค้าในลูป
+		imageResult := orm.Db.Where("product_id = ?", product.ID).First(&images)
+		if imageResult.Error != nil {
+			return
+		}
+
+		// Update the product with the image information
+		if len(images) > 0 {
+			selectedImage := images[0]
+			products[i].Image = selectedImage.Image
+		}
+	}
+
+	// ส่งข้อมูลทั้งหมดในรูปแบบ JSON
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Products retrieved successfully", "products": products})
+}
+
+
+func GetProductById(c *gin.Context) {
+    // Get the product ID from the request parameters
+    productID := c.Param("id")
+
+    // Check if the product ID is provided
+    if productID == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "Product ID is required"})
+        return
+    }
+
+    var products []orm.PRODUCT
+
+    // ดึงข้อมูลจากตาราง PRODUCT โดยใช้ productID
+    result := orm.Db.Where("id = ?", productID).Find(&products)
+    if result.Error != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to retrieve product", "error": result.Error.Error()})
+        return
+    }
+
+    // ส่งข้อมูลในรูปแบบ JSON
+    c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Product retrieved successfully", "product": products})
+}
+
+func GetImageById(c *gin.Context) {
+    // Get the product ID from the request parameters
+    productID := c.Param("id")
+
+    // Check if the product ID is provided
+    if productID == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "Product ID is required"})
+        return
+    }
+
+    var images []orm.IMAGE
+
+    // ดึงข้อมูลจากตาราง PRODUCT โดยใช้ productID
+    result := orm.Db.Where("product_id = ?", productID).Find(&images)
+    if result.Error != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to retrieve product", "error": result.Error.Error()})
+        return
+    }
+
+    // ส่งข้อมูลในรูปแบบ JSON
+    c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Product retrieved successfully", "product": images})
+}
+
+func GetCategoryById(c *gin.Context) {
+    // Get the product ID from the request parameters
+    CategoryID := c.Param("id")
+
+    // Check if the product ID is provided
+    if  CategoryID == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "Product ID is required"})
+        return
+    }
+
+    var category orm.CATEGORY
+
+    // ดึงข้อมูลจากตาราง PRODUCT โดยใช้ productID
+    result := orm.Db.Where("id = ?",  CategoryID).Find(&category)
+    if result.Error != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to retrieve product", "error": result.Error.Error()})
+        return
+    }
+
+    // ส่งข้อมูลในรูปแบบ JSON
+    c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Product retrieved successfully", "product": category})
+}

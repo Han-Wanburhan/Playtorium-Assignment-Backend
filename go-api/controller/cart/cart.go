@@ -11,13 +11,13 @@ import (
 )
 
 type addtocartbody struct {
-	CustomerID    int `json:"customer_id" validate:"require"`
-	ProductID int `json:"product_id" validate:"require"`
-	Quantity int `json:"quantity" validate:"require"`
-
+	CustomerID int `json:"customer_id" validate:"required"`
+	ProductID  int `json:"product_id" validate:"required"`
+	Quantity   int `json:"quantity" validate:"required"`
 }
 
-func AddToCart(c *gin.Context){
+
+func AddToCart(c *gin.Context) {
 	var json addtocartbody
 
 	if err := c.ShouldBindJSON(&json); err != nil {
@@ -25,25 +25,39 @@ func AddToCart(c *gin.Context){
 		return
 	}
 
-
-	// ไม่พบ Category ในฐานข้อมูล, จึงสร้าง Category ใหม่
-	newAddCartItem := orm.CARTITEM{
-		CustomerID: json.CustomerID,
-		ProductID: json.ProductID,
-		Quantity: json.Quantity,
-
-	}
-
-	result := orm.Db.Create(&newAddCartItem)
+	existingCartItem := orm.CARTITEM{}
+	result := orm.Db.Where("customer_id = ? AND product_id = ?", json.CustomerID, json.ProductID).First(&existingCartItem)
+if result.Error == nil { // ถ้าไม่มี error แสดงว่ามีข้อมูลแล้ว
+	// มีข้อมูลอยู่แล้ว, ทำการอัพเดท quantity
+	existingCartItem.Quantity = json.Quantity
+	result := orm.Db.Model(&existingCartItem).Where("customer_id = ? AND product_id = ?", json.CustomerID, json.ProductID).Update("quantity", json.Quantity)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to create Category", "error": result.Error.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to update Cart Item", "error": result.Error.Error()})
 		return
 	}
 
-	// สร้าง Category สำเร็จ, ส่งข้อมูล Category ที่ถูกสร้างไปด้วย
-	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Category created successfully", "category": newAddCartItem})
-
+	// อัพเดท quantity สำเร็จ, ส่งข้อมูล Cart Item ที่ถูกอัพเดทไปด้วย
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Cart Item updated successfully", "cart_item": existingCartItem})
+	return
 }
+
+	// ไม่พบข้อมูล, จึงสร้าง Cart Item ใหม่
+	newAddCartItem := orm.CARTITEM{
+		CustomerID: json.CustomerID,
+		ProductID:  json.ProductID,
+		Quantity:   json.Quantity,
+	}
+
+	result = orm.Db.Create(&newAddCartItem)
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to create Cart Item", "error": result.Error.Error()})
+		return
+	}
+
+	// สร้าง Cart Item สำเร็จ, ส่งข้อมูล Cart Item ที่ถูกสร้างไปด้วย
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Cart Item created successfully", "cart_item": newAddCartItem})
+}
+
 
 type couponfixedamountbody struct {
 	Total   int `json:"total" validate:"require"`
@@ -61,7 +75,7 @@ func CouponFixedAmount(c *gin.Context) {
 
 	if json.Total >= json.Amount && json.Amount > 1 && json.Total > 1{
 		newTotal := json.Total - json.Amount
-		c.JSON(http.StatusOK, gin.H{"status": "success", "newTotal": newTotal})
+		c.JSON(http.StatusOK, gin.H{"status": "success", "newTotal": newTotal,"discount": json.Amount})
 	} else {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"status": "error", "message": "Amount exceeds the total, cannot apply discount"})
 	}
@@ -87,7 +101,7 @@ func CouponPercentageDiscount(c *gin.Context) {
 		} else {
 		discount := json.Total * json.Percentage / 100
 		newTotal := json.Total - discount
-		c.JSON(http.StatusOK, gin.H{"status": "success", "newTotal": newTotal})
+		c.JSON(http.StatusOK, gin.H{"status": "success", "newTotal": newTotal,"discount": discount})
 	}
 }
 
@@ -161,7 +175,7 @@ if result.Error != nil {
 
 
 	// c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Records found", "results":productIDs,"newtotal": newTotal})
-		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Records found","newtotal": newTotal})
+		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Records found","newtotal": newTotal,"discount": totaldis})
 
 		return
 }	}
@@ -212,7 +226,7 @@ func OntopDiscountByPoint(c *gin.Context) {
 	if json.Point <= limitdis {
 		newTotal := json.Total-json.Point
 		fmt.Println(newTotal)
-		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Records found","newtotal": newTotal})
+		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Records found","newtotal": newTotal,"discount": json.Point})
 		return
 	}else{
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "Point exceeds the limit, cannot apply discount"})
@@ -239,11 +253,61 @@ func SeasonalSpecialCampaigns(c *gin.Context) {
 			countdis := json.Total / json.Every
 			newTotal := json.Total - (countdis * json.Discount)
 			fmt.Println(newTotal)
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "newtotal": newTotal})
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "newtotal": newTotal,"discount": countdis * json.Discount})
 		return
 	}else{
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error"})
 		return
 	}
 
+}
+
+
+func GetAllCartItemById(c *gin.Context) {
+    // Get the customer ID from the request parameters
+    customerID := c.Param("id")
+
+    // Check if the customer ID is provided
+    if customerID == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "Customer ID is required"})
+        return
+    }
+
+    var cartitems []orm.CARTITEM
+
+    // Fetch cart items for the customer
+    result := orm.Db.Where("customer_id = ?", customerID).Find(&cartitems)
+    if result.Error != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to retrieve cart items", "error": result.Error.Error()})
+        return
+    }
+
+    // Manually fetch and associate images for each product
+    for i, cartitem := range cartitems {
+        var product orm.PRODUCT
+        result := orm.Db.Where("id = ?", cartitem.ProductID).First(&product)
+        if result.Error != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to retrieve product", "error": result.Error.Error()})
+            return
+        }
+
+        var images []orm.IMAGE
+        imageResult := orm.Db.Where("product_id = ?", product.ID).First(&images)
+        if imageResult.Error != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to retrieve images", "error": imageResult.Error.Error()})
+            return
+        }
+
+        // Update the product with the image information
+        if len(images) > 0 {
+            selectedImage := images[0]
+            product.Image = selectedImage.Image
+        }
+
+        // Update the cart item with the associated product
+        cartitems[i].Product = product
+    }
+
+    // Send data in JSON format
+    c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Cart items retrieved successfully", "cart_items": cartitems})
 }

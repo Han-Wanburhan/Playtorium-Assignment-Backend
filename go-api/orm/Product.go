@@ -10,4 +10,7 @@ type PRODUCT struct {
 	P_In_Stock int
 	CategoryID uint // Foreign key referencing Category's ID
 	Category   CATEGORY `gorm:"foreignKey:CategoryID"`
+	Image string `json:"image"`
+
+	
 }
