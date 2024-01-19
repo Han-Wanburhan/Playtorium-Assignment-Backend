@@ -6,13 +6,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"shopping/go-api/orm"
 	"testing"
+	"testing/quick"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func TestCouponFixedAmount(t *testing.T) {
@@ -36,116 +34,151 @@ assert.JSONEq(t, `{"status":"success","newTotal":550,"discount":50}`, w.Body.Str
 }
 
 func TestCouponPercentageDiscount(t *testing.T) {
-	// Create a new Gin router
 	r := gin.New()
 
-	// Define the input data
 	input := couponpercentagediscountbody{
 		Total:      600,
 		Percentage: 10,
 	}
 
-	// Convert input to JSON
 	inputJSON, _ := json.Marshal(input)
 
-	// Create a request
 	req, err := http.NewRequest("POST", "/coupon", bytes.NewBuffer(inputJSON))
 	assert.NoError(t, err)
 
-	// Set the request header
 	req.Header.Set("Content-Type", "application/json")
 
-	// Create a response recorder
 	w := httptest.NewRecorder()
 
-	// Serve the request to the handler
 	r.POST("/coupon", CouponPercentageDiscount)
 	r.ServeHTTP(w, req)
 
-	// Assert the HTTP status code
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Define the expected response
 	expected := gin.H{
 		"status":   "ok",
 		"newTotal": 540,
 		"discount": 60,
 	}
 
-	// Parse the response body
 	var response map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 
-	// Convert maps to JSON strings and compare
 	expectedJSON, _ := json.Marshal(expected)
 	actualJSON, _ := json.Marshal(response)
 	assert.JSONEq(t, string(expectedJSON), string(actualJSON))
 }
 
-func TestOntopDiscountByPoint(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
-	// Mocking the ORM.Db for testing
-	orm.Db = MockDB()
+func TestDisFixedAmount(t *testing.T) {
+	err := quick.Check(func(total, amount int) bool {
+		if total <= 1 {
+			return true
+		}
 
-	// Create a new Gin router
-	r := gin.New()
+		if amount < 1 || amount > total {
+			return true
+		}
 
-	// Define the input data
-	input := ontopdiscountbypointbody{
-		CustomerID: 1,
-		Total:      830,
-		Point:      68,
+		newTotal, discountErr := DisFixedAmount(total, amount)
+
+		if discountErr != nil {
+			return false
+		}
+
+		return newTotal == total-amount
+	}, nil)
+
+	if err != nil {
+		t.Error("Test failed:", err)
 	}
 
-	// Convert input to JSON
-	inputJSON, _ := json.Marshal(input)
+	invalidTotal, invalidAmount := 1, 2
+	_, discountErr := DisFixedAmount(invalidTotal, invalidAmount)
 
-	// Create a request
-	req, err := http.NewRequest("POST", "/ontop_discount_by_point", bytes.NewBuffer(inputJSON))
-	assert.NoError(t, err)
-
-	// Set the request header
-	req.Header.Set("Content-Type", "application/json")
-
-	// Create a response recorder
-	w := httptest.NewRecorder()
-
-	// Serve the request to the handler
-	r.POST("/ontop_discount_by_point", OntopDiscountByPoint)
-	r.ServeHTTP(w, req)
-
-	// Assert the HTTP status code
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	// Define the expected response
-	expected := gin.H{
-		"status":   "success",
-		"message":  "Records found",
-		"newtotal": float64(830 - 68),
-		"discount": 68,
+	if discountErr == nil {
+		t.Error("Expected error but got none")
 	}
-
-	// Parse the response body
-	var response map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &response)
-	assert.NoError(t, err)
-
-	// Convert maps to JSON strings and compare
-	expectedJSON, _ := json.Marshal(expected)
-	actualJSON, _ := json.Marshal(response)
-	assert.JSONEq(t, string(expectedJSON), string(actualJSON))
 }
 
-// // MockDB provides a mock implementation of the database for testing
-func MockDB() *gorm.DB {
-	db, _ := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	return db
+
+
+
+
+func TestDisPercentage(t *testing.T) {
+    total1 := 100
+    percentage1 := 10
+    expectedNewTotal1 := 90
+    expectedDiscount1 := 10
+
+    newTotal1, discount1, err1 := DisPercentage(total1, percentage1)
+    if err1 != nil {
+        t.Errorf("Unexpected error: %v", err1)
+    }
+
+    if newTotal1 != expectedNewTotal1 || discount1 != expectedDiscount1 {
+        t.Errorf("Test case 1 failed: expected (%d, %d), got (%d, %d)", expectedNewTotal1, expectedDiscount1, newTotal1, discount1)
+    }
+
+    total2 := 200
+    percentage2 := 15
+    expectedNewTotal2 := 170
+    expectedDiscount2 := 30
+
+    newTotal2, discount2, err2 := DisPercentage(total2, percentage2)
+    if err2 != nil {
+        t.Errorf("Unexpected error: %v", err2)
+    }
+
+    if newTotal2 != expectedNewTotal2 || discount2 != expectedDiscount2 {
+        t.Errorf("Test case 2 failed: expected (%d, %d), got (%d, %d)", expectedNewTotal2, expectedDiscount2, newTotal2, discount2)
+    }
+
 }
 
-// MockDBCleanUp cleans up the mock database after the tests
-func MockDBCleanUp() {
-	orm.Db = nil
+
+func TestLimitDis(t *testing.T) {
+    total1 := 100
+    expectedDiscount1 := 20
+
+    discount1, err1 := limitdis(total1)
+    if err1 != nil {
+        t.Errorf("Unexpected error: %v", err1)
+    }
+
+    if discount1 != expectedDiscount1 {
+        t.Errorf("Test case 1 failed: expected %d, got %d", expectedDiscount1, discount1)
+    }
+
+    total2 := 200
+    expectedDiscount2 := 40
+
+    discount2, err2 := limitdis(total2)
+    if err2 != nil {
+        t.Errorf("Unexpected error: %v", err2)
+    }
+
+    if discount2 != expectedDiscount2 {
+        t.Errorf("Test case 2 failed: expected %d, got %d", expectedDiscount2, discount2)
+    }
+
 }
 
+func TestDis(t *testing.T) {
+    total1 := 830
+    eve1 := 300
+    discount1 := 40
+    expectedNewTotal1 := 750
+    expectedCountdis1 := 80
+
+    newTotal1, countdis1, err1 := dis(total1, eve1, discount1 )
+    if err1 != nil {
+        t.Errorf("Unexpected error: %v", err1)
+    }
+
+    if newTotal1 != expectedNewTotal1 || countdis1 != expectedCountdis1 {
+        t.Errorf("Test case 1 failed: expected (%d, %d), got (%d, %d)", expectedNewTotal1, expectedCountdis1, newTotal1, countdis1)
+    }
+
+}

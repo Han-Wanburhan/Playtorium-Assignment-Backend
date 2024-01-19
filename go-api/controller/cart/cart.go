@@ -27,8 +27,7 @@ func AddToCart(c *gin.Context) {
 
 	existingCartItem := orm.CARTITEM{}
 	result := orm.Db.Where("customer_id = ? AND product_id = ?", json.CustomerID, json.ProductID).First(&existingCartItem)
-if result.Error == nil { // ถ้าไม่มี error แสดงว่ามีข้อมูลแล้ว
-	// มีข้อมูลอยู่แล้ว, ทำการอัพเดท quantity
+if result.Error == nil { 
 	existingCartItem.Quantity = json.Quantity
 	result := orm.Db.Model(&existingCartItem).Where("customer_id = ? AND product_id = ?", json.CustomerID, json.ProductID).Update("quantity", json.Quantity)
 	if result.Error != nil {
@@ -36,12 +35,10 @@ if result.Error == nil { // ถ้าไม่มี error แสดงว่า
 		return
 	}
 
-	// อัพเดท quantity สำเร็จ, ส่งข้อมูล Cart Item ที่ถูกอัพเดทไปด้วย
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Cart Item updated successfully", "cart_item": existingCartItem})
 	return
 }
 
-	// ไม่พบข้อมูล, จึงสร้าง Cart Item ใหม่
 	newAddCartItem := orm.CARTITEM{
 		CustomerID: json.CustomerID,
 		ProductID:  json.ProductID,
@@ -54,7 +51,6 @@ if result.Error == nil { // ถ้าไม่มี error แสดงว่า
 		return
 	}
 
-	// สร้าง Cart Item สำเร็จ, ส่งข้อมูล Cart Item ที่ถูกสร้างไปด้วย
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Cart Item created successfully", "cart_item": newAddCartItem})
 }
 
@@ -109,10 +105,17 @@ func CouponPercentageDiscount(c *gin.Context) {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"status": "error", "message": "Amount exceeds the total, cannot apply discount"})
 		return
 		} else {
-		discount := json.Total * json.Percentage / 100
-		newTotal := json.Total - discount
+		// discount := json.Total * json.Percentage / 100
+		// newTotal := json.Total - discount
+		newTotal, discount, _  := DisPercentage(json.Total, json.Percentage)
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "newTotal": newTotal,"discount": discount})
 	}
+}
+
+func DisPercentage(total, percentage int) (int, int, error) {
+    discount := total * percentage / 100
+    newTotal := total - discount
+    return newTotal, discount, nil
 }
 
 
@@ -144,7 +147,6 @@ if result.Error != nil {
 }
 
 
-    // ตรวจสอบในฐานข้อมูลว่ามีข้อมูลที่มี customer_id เดียวกันหรือไม่
     var results []orm.CARTITEM
 
     if err := orm.Db.Preload("Customer").Preload("Product").Where("customer_id = ?", json.CustomerID).Find(&results).Error; err != nil {
@@ -158,7 +160,6 @@ if result.Error != nil {
 		} else {
 		
 
-    // Check if any records were found
     if len(results) > 0 {
         		var productIDs []int
 				var productPrice []int
@@ -179,9 +180,6 @@ if result.Error != nil {
 
 		
     }
-	// fmt.Println(productPrice)
-			fmt.Println(productIDs)
-		fmt.Println(productPrice)
 			
 	totalincate := sum(productPrice)
 	totaldis := float64(totalincate) * float64(json.Percentage) / 100
@@ -194,7 +192,6 @@ if result.Error != nil {
 		return
 }	}
 
-    // No records found, proceed with the rest of your logic here...
     c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "No records found for the specified customer_id"})
 }
 
@@ -236,8 +233,9 @@ func OntopDiscountByPoint(c *gin.Context) {
 	}
 
 
-	limitdis := json.Total*20/100
-	if json.Point <= limitdis {
+	// limitdis := json.Total*20/100
+	limitdis,_ := limitdis((json.Total))
+	if (json.Point) <= limitdis {
 		newTotal := json.Total-json.Point
 		fmt.Println(newTotal)
 		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Records found","newtotal": newTotal,"discount": json.Point})
@@ -248,6 +246,10 @@ func OntopDiscountByPoint(c *gin.Context) {
 	}
 
 
+}
+func limitdis(total int) (int, error) {
+	dis := total*20/100
+	return dis, nil
 }
 
 type seasonalspecialcampaignsbody struct {
@@ -264,10 +266,11 @@ func SeasonalSpecialCampaigns(c *gin.Context) {
 		return
 	}
 	if json.Total > 0 && json.Every > 0 && json.Discount > 0 {
-			countdis := json.Total / json.Every
-			newTotal := json.Total - (countdis * json.Discount)
-			fmt.Println(newTotal)
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "newtotal": newTotal,"discount": countdis * json.Discount})
+			// countdis := json.Total / json.Every
+			// newTotal := json.Total - (countdis * json.Discount)
+			// fmt.Println(newTotal)
+			newTotal, countdis, _ := dis(json.Total, json.Every, json.Discount)
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "newtotal": newTotal,"discount": countdis})
 		return
 	}else{
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error"})
@@ -276,27 +279,28 @@ func SeasonalSpecialCampaigns(c *gin.Context) {
 
 }
 
+func dis(total, eve, discount int) (int, int, error) {
+    countdis := total / eve
+    newTotal := total - (countdis * discount)
+    calculatedDiscount := countdis * discount
+    return newTotal,calculatedDiscount, nil
+}
 
 func GetAllCartItemById(c *gin.Context) {
-    // Get the customer ID from the request parameters
     customerID := c.Param("id")
 
-    // Check if the customer ID is provided
     if customerID == "" {
         c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "Customer ID is required"})
         return
     }
 
     var cartitems []orm.CARTITEM
-
-    // Fetch cart items for the customer
     result := orm.Db.Where("customer_id = ?", customerID).Find(&cartitems)
     if result.Error != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to retrieve cart items", "error": result.Error.Error()})
         return
     }
 
-    // Manually fetch and associate images for each product
     for i, cartitem := range cartitems {
         var product orm.PRODUCT
         result := orm.Db.Where("id = ?", cartitem.ProductID).First(&product)
@@ -312,16 +316,15 @@ func GetAllCartItemById(c *gin.Context) {
             return
         }
 
-        // Update the product with the image information
         if len(images) > 0 {
             selectedImage := images[0]
             product.Image = selectedImage.Image
         }
 
-        // Update the cart item with the associated product
+
         cartitems[i].Product = product
     }
 
-    // Send data in JSON format
+
     c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Cart items retrieved successfully", "cart_items": cartitems})
 }
