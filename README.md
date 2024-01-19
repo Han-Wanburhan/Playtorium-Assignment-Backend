@@ -46,6 +46,7 @@ Provide step-by-step instructions on how to install your project.
 
 ```bash
 # Example installation command
+docker compose up
 cd go-api
 go get .
 go run .
