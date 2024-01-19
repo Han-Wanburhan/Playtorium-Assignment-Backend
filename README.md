@@ -39,6 +39,7 @@ go to run backend fisrt
 
 ### Prerequisites
 Install Go and Gin Web Framework
+Docker
 
 ### Installation
 
