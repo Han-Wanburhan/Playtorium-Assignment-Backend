@@ -71,14 +71,14 @@ func CouponFixedAmount(c *gin.Context) {
 
 	if json.Total >= json.Amount && json.Amount > 1 && json.Total > 1{
 		// newTotal := json.Total - json.Amount
-		newTotal, _ := DisFixedAmount(json.Total, json.Amount)
+		newTotal, _ := DisFixedAmount(float32(json.Total), float32(json.Amount))
 		c.JSON(http.StatusOK, gin.H{"status": "success", "newTotal": newTotal,"discount": json.Amount})
 	} else {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"status": "error", "message": "Amount exceeds the total, cannot apply discount"})
 	}
 }
 
-func DisFixedAmount(total , amount int) (int, error) {
+func DisFixedAmount(total , amount float32) (float32, error) {
 	if total >= amount && amount > 1 && total > 1{
 		newTotal := total - amount
 		return newTotal, nil
@@ -107,12 +107,12 @@ func CouponPercentageDiscount(c *gin.Context) {
 		} else {
 		// discount := json.Total * json.Percentage / 100
 		// newTotal := json.Total - discount
-		newTotal, discount, _  := DisPercentage(json.Total, json.Percentage)
+		newTotal, discount, _  := DisPercentage(float32(json.Total), float32(json.Percentage))
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "newTotal": newTotal,"discount": discount})
 	}
 }
 
-func DisPercentage(total, percentage int) (int, int, error) {
+func DisPercentage(total, percentage float32) (float32, float32, error) {
     discount := total * percentage / 100
     newTotal := total - discount
     return newTotal, discount, nil
@@ -182,8 +182,8 @@ if result.Error != nil {
     }
 			
 	totalincate := sum(productPrice)
-	totaldis := float64(totalincate) * float64(json.Percentage) / 100
-	newTotal := float64(json.Total) - totaldis
+	totaldis := float32(totalincate) * float32(json.Percentage) / 100
+	newTotal := float32(json.Total) - totaldis
 
 
 	// c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Records found", "results":productIDs,"newtotal": newTotal})
@@ -234,8 +234,8 @@ func OntopDiscountByPoint(c *gin.Context) {
 
 
 	// limitdis := json.Total*20/100
-	limitdis,_ := limitdis((json.Total))
-	if (json.Point) <= limitdis {
+	limitdis,_ := limitdis((float32(json.Total)))
+	if float32(json.Point) <= limitdis {
 		newTotal := json.Total-json.Point
 		fmt.Println(newTotal)
 		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Records found","newtotal": newTotal,"discount": json.Point})
@@ -247,13 +247,13 @@ func OntopDiscountByPoint(c *gin.Context) {
 
 
 }
-func limitdis(total int) (int, error) {
+func limitdis(total float32) (float32, error) {
 	dis := total*20/100
 	return dis, nil
 }
 
 type seasonalspecialcampaignsbody struct {
-    Total int `json:"total" validate:"required"`
+    Total float32 `json:"total" validate:"required"`
     Every      int `json:"every" validate:"required"`
 	Discount int `json:"discount" validate:"required"`
 }
@@ -269,7 +269,7 @@ func SeasonalSpecialCampaigns(c *gin.Context) {
 			// countdis := json.Total / json.Every
 			// newTotal := json.Total - (countdis * json.Discount)
 			// fmt.Println(newTotal)
-			newTotal, countdis, _ := dis(json.Total, json.Every, json.Discount)
+			newTotal, countdis, _ := dis(float32(json.Total), float32(json.Every), float32(json.Discount))
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "newtotal": newTotal,"discount": countdis})
 		return
 	}else{
@@ -279,8 +279,9 @@ func SeasonalSpecialCampaigns(c *gin.Context) {
 
 }
 
-func dis(total, eve, discount int) (int, int, error) {
-    countdis := total / eve
+func dis(total, eve, discount float32) (float32, float32, error) {
+    countdisInt := int(total / eve)
+    countdis := float32(countdisInt)
     newTotal := total - (countdis * discount)
     calculatedDiscount := countdis * discount
     return newTotal,calculatedDiscount, nil

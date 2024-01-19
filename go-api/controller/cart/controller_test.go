@@ -4,10 +4,10 @@ package cart
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"testing/quick"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -71,114 +71,122 @@ func TestCouponPercentageDiscount(t *testing.T) {
 }
 
 
+// Coupon Fixed Amount
 func TestDisFixedAmount(t *testing.T) {
-	err := quick.Check(func(total, amount int) bool {
-		if total <= 1 {
-			return true
-		}
+	total1 := float32(100)
+	amount1 := float32(20)
+	expectedNewTotal1 := float32(80)
 
-		if amount < 1 || amount > total {
-			return true
-		}
-
-		newTotal, discountErr := DisFixedAmount(total, amount)
-
-		if discountErr != nil {
-			return false
-		}
-
-		return newTotal == total-amount
-	}, nil)
-
-	if err != nil {
-		t.Error("Test failed:", err)
+	newTotal1, err1 := DisFixedAmount(total1, amount1)
+	if err1 != nil {
+		t.Errorf("Unexpected error: %v", err1)
 	}
 
-	invalidTotal, invalidAmount := 1, 2
-	_, discountErr := DisFixedAmount(invalidTotal, invalidAmount)
+	if newTotal1 != expectedNewTotal1 {
+		t.Errorf("Test case 1 failed: expected %.2f, got %.2f", expectedNewTotal1, newTotal1)
+	}
 
-	if discountErr == nil {
-		t.Error("Expected error but got none")
+	total2 := float32(50)
+	amount2 := float32(60)
+
+	_, err2 := DisFixedAmount(total2, amount2)
+	expectedError2 := errors.New("Amount exceeds the total, cannot apply discount")
+
+	if err2 == nil || err2.Error() != expectedError2.Error() {
+		t.Errorf("Test case 2 failed: expected error '%v', got '%v'", expectedError2, err2)
 	}
 }
 
-
-
-
-
+// Coupon Percentage Discount
 func TestDisPercentage(t *testing.T) {
-    total1 := 100
-    percentage1 := 10
-    expectedNewTotal1 := 90
-    expectedDiscount1 := 10
+	total1 := float32(100)
+	percentage1 := float32(10)
+	expectedNewTotal1 := float32(90)
+	expectedDiscount1 := float32(10)
 
-    newTotal1, discount1, err1 := DisPercentage(total1, percentage1)
-    if err1 != nil {
-        t.Errorf("Unexpected error: %v", err1)
-    }
+	newTotal1, discount1, err1 := DisPercentage(total1, percentage1)
+	if err1 != nil {
+		t.Errorf("Unexpected error: %v", err1)
+	}
 
-    if newTotal1 != expectedNewTotal1 || discount1 != expectedDiscount1 {
-        t.Errorf("Test case 1 failed: expected (%d, %d), got (%d, %d)", expectedNewTotal1, expectedDiscount1, newTotal1, discount1)
-    }
+	if newTotal1 != expectedNewTotal1 || discount1 != expectedDiscount1 {
+		t.Errorf("Test case 1 failed: expected (%.2f, %.2f), got (%.2f, %.2f)", expectedNewTotal1, expectedDiscount1, newTotal1, discount1)
+	}
 
-    total2 := 200
-    percentage2 := 15
-    expectedNewTotal2 := 170
-    expectedDiscount2 := 30
+	total2 := float32(200)
+	percentage2 := float32(15)
+	expectedNewTotal2 := float32(170)
+	expectedDiscount2 := float32(30)
 
-    newTotal2, discount2, err2 := DisPercentage(total2, percentage2)
-    if err2 != nil {
-        t.Errorf("Unexpected error: %v", err2)
-    }
+	newTotal2, discount2, err2 := DisPercentage(total2, percentage2)
+	if err2 != nil {
+		t.Errorf("Unexpected error: %v", err2)
+	}
 
-    if newTotal2 != expectedNewTotal2 || discount2 != expectedDiscount2 {
-        t.Errorf("Test case 2 failed: expected (%d, %d), got (%d, %d)", expectedNewTotal2, expectedDiscount2, newTotal2, discount2)
-    }
-
+	if newTotal2 != expectedNewTotal2 || discount2 != expectedDiscount2 {
+		t.Errorf("Test case 2 failed: expected (%.2f, %.2f), got (%.2f, %.2f)", expectedNewTotal2, expectedDiscount2, newTotal2, discount2)
+	}
 }
 
 
 func TestLimitDis(t *testing.T) {
-    total1 := 100
-    expectedDiscount1 := 20
+	total1 := float32(100)
+	expectedDiscount1 := float32(20)
 
-    discount1, err1 := limitdis(total1)
-    if err1 != nil {
-        t.Errorf("Unexpected error: %v", err1)
-    }
+	dis1, err1 := limitdis(total1)
+	if err1 != nil {
+		t.Errorf("Unexpected error: %v", err1)
+	}
 
-    if discount1 != expectedDiscount1 {
-        t.Errorf("Test case 1 failed: expected %d, got %d", expectedDiscount1, discount1)
-    }
+	if dis1 != expectedDiscount1 {
+		t.Errorf("Test case 1 failed: expected %.2f, got %.2f", expectedDiscount1, dis1)
+	}
 
-    total2 := 200
-    expectedDiscount2 := 40
+	total2 := float32(200)
+	expectedDiscount2 := float32(40)
 
-    discount2, err2 := limitdis(total2)
-    if err2 != nil {
-        t.Errorf("Unexpected error: %v", err2)
-    }
+	dis2, err2 := limitdis(total2)
+	if err2 != nil {
+		t.Errorf("Unexpected error: %v", err2)
+	}
 
-    if discount2 != expectedDiscount2 {
-        t.Errorf("Test case 2 failed: expected %d, got %d", expectedDiscount2, discount2)
-    }
-
+	if dis2 != expectedDiscount2 {
+		t.Errorf("Test case 2 failed: expected %.2f, got %.2f", expectedDiscount2, dis2)
+	}
 }
 
+
+// test seasonal special campaigns
 func TestDis(t *testing.T) {
-    total1 := 830
-    eve1 := 300
-    discount1 := 40
-    expectedNewTotal1 := 750
-    expectedCountdis1 := 80
+	total1 := float32(100)
+	eve1 := float32(20)
+	discount1 := float32(5)
 
-    newTotal1, countdis1, err1 := dis(total1, eve1, discount1 )
-    if err1 != nil {
-        t.Errorf("Unexpected error: %v", err1)
-    }
+	expectedNewTotal1 := float32(75)
+	expectedCalculatedDiscount1 := float32(25)
 
-    if newTotal1 != expectedNewTotal1 || countdis1 != expectedCountdis1 {
-        t.Errorf("Test case 1 failed: expected (%d, %d), got (%d, %d)", expectedNewTotal1, expectedCountdis1, newTotal1, countdis1)
-    }
+	newTotal1, calculatedDiscount1, err1 := dis(total1, eve1, discount1)
+	if err1 != nil {
+		t.Errorf("Unexpected error: %v", err1)
+	}
 
+	if newTotal1 != expectedNewTotal1 || calculatedDiscount1 != expectedCalculatedDiscount1 {
+		t.Errorf("Test case 1 failed: expected (%.2f, %.2f), got (%.2f, %.2f)", expectedNewTotal1, expectedCalculatedDiscount1, newTotal1, calculatedDiscount1)
+	}
+
+	total2 := float32(200)
+	eve2 := float32(50)
+	discount2 := float32(10)
+
+	expectedNewTotal2 := float32(160)
+	expectedCalculatedDiscount2 := float32(40)
+
+	newTotal2, calculatedDiscount2, err2 := dis(total2, eve2, discount2)
+	if err2 != nil {
+		t.Errorf("Unexpected error: %v", err2)
+	}
+
+	if newTotal2 != expectedNewTotal2 || calculatedDiscount2 != expectedCalculatedDiscount2 {
+		t.Errorf("Test case 2 failed: expected (%.2f, %.2f), got (%.2f, %.2f)", expectedNewTotal2, expectedCalculatedDiscount2, newTotal2, calculatedDiscount2)
+	}
 }
